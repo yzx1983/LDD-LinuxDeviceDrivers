@@ -110,14 +110,26 @@ static int force_cleanup_module(char *del_mod_name)
     mod->state = MODULE_STATE_LIVE;
 
     //  清除驱动的引用计数
+    int ref_cnt = 0;
     for_each_possible_cpu(cpu)
     {
-        local_set((local_t*)per_cpu_ptr(&(mod->refcnt), cpu), 0);
+        //local_set((local_t*)per_cpu_ptr(&(mod->refcnt), cpu), 0);
         //local_set(__module_ref_addr(mod, cpu), 0);
-        //per_cpu_ptr(mod->refptr, cpu)->decs;
-        //module_put(mod);
+        if (per_cpu_ptr(mod->refptr, cpu)->decs) {
+          printk("module has dec %d on cpu %d\n", per_cpu_ptr(mod->refptr, cpu)->decs, cpu);
+          ref_cnt -= per_cpu_ptr(mod->refptr, cpu)->decs;
+        }
+
+        if (per_cpu_ptr(mod->refptr, cpu)->incs) {
+          //module_put(mod);
+          printk("module has inc %d on cpu %d\n", per_cpu_ptr(mod->refptr, cpu)->incs, cpu);
+          ref_cnt += per_cpu_ptr(mod->refptr, cpu)->incs;
+        }
     }
-    atomic_set(&mod->refcnt, 1);
+    for(int i = 0; i < ref_cnt; i++) {
+        module_put(mod);
+    }
+    //atomic_set(&mod->refcnt, 1);
 
 #ifdef CONFIG_REPLACE_EXIT_FUNCTION
     /////////////////////
